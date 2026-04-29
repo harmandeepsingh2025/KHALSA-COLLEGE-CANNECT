@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { User, ChevronDown, IdCard, GraduationCap, ArrowRight } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useNavigate, Link } from 'react-router-dom';
@@ -6,12 +6,35 @@ import { useAuth } from '../context/AuthContext';
 
 export default function Registration() {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, updateProfile } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    displayName: '',
+    studentId: '',
+    academicYear: ''
+  });
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    login();
-    navigate('/');
+    setLoading(true);
+    try {
+      const newUser = await login();
+      
+      // We pass the data to updateProfile which will be saved to Firestore
+      await updateProfile({
+        uid: newUser.uid,
+        ...formData,
+        role: 'student',
+        email: newUser.email || '',
+        photoURL: `https://api.dicebear.com/7.x/avataaars/svg?seed=${formData.displayName}`,
+        createdAt: new Date().toISOString() // Using string for now or let updateProfile handle it
+      });
+      navigate('/');
+    } catch (error) {
+      console.error('Registration error:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -71,6 +94,8 @@ export default function Registration() {
                         <input 
                             type="text" 
                             required
+                            value={formData.displayName}
+                            onChange={(e) => setFormData({...formData, displayName: e.target.value})}
                             className="input-field pl-12" 
                             placeholder="e.g. Gurpreet Singh"
                         />
@@ -86,6 +111,8 @@ export default function Registration() {
                         <input 
                             type="text" 
                             required
+                            value={formData.studentId}
+                            onChange={(e) => setFormData({...formData, studentId: e.target.value})}
                             className="input-field pl-12" 
                             placeholder="e.g. KC-2024-001"
                         />
@@ -98,11 +125,16 @@ export default function Registration() {
                         <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
                             <GraduationCap size={20} />
                         </div>
-                        <select className="input-field pl-12 appearance-none cursor-pointer" required>
+                        <select 
+                          className="input-field pl-12 appearance-none cursor-pointer" 
+                          required
+                          value={formData.academicYear}
+                          onChange={(e) => setFormData({...formData, academicYear: e.target.value})}
+                        >
                             <option value="">Select your current year</option>
-                            <option value="1">1st Semester</option>
-                            <option value="2">2nd Semester</option>
-                            <option value="3">3rd Semester</option>
+                            <option value="1st Year">1st Year</option>
+                            <option value="2nd Year">2nd Year</option>
+                            <option value="3rd Year">3rd Year</option>
                         </select>
                         <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={20} />
                     </div>
@@ -111,10 +143,11 @@ export default function Registration() {
             
             <button 
                 type="submit"
-                className="w-full bg-brand-navy text-white py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-3 shadow-xl shadow-brand-navy/20 hover:bg-brand-navy/90 transition-all group"
+                disabled={loading}
+                className="w-full bg-brand-navy text-white py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-3 shadow-xl shadow-brand-navy/20 hover:bg-brand-navy/90 transition-all group disabled:opacity-50"
             >
-                Register Account
-                <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
+                {loading ? 'Registering...' : 'Register Account'}
+                {!loading && <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />}
             </button>
             
             <p className="text-center text-gray-500 font-medium">

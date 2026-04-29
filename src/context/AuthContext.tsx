@@ -1,4 +1,18 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { auth, db } from '../lib/firebase';
+import { 
+  onAuthStateChanged, 
+  signInAnonymously, 
+  signOut,
+  User as FirebaseUser 
+} from 'firebase/auth';
+import { 
+  doc, 
+  onSnapshot, 
+  setDoc, 
+  getDoc,
+  serverTimestamp 
+} from 'firebase/firestore';
 
 interface UserProfile {
   uid: string;
@@ -8,55 +22,103 @@ interface UserProfile {
   role: 'student' | 'instructor' | 'admin';
   studentId?: string;
   phoneNumber?: string;
+  academicYear?: string;
 }
 
 interface AuthContextType {
-  user: any | null;
+  user: FirebaseUser | null;
   profile: UserProfile | null;
   loading: boolean;
   isLoggedIn: boolean;
-  login: () => Promise<void>;
+  login: () => Promise<FirebaseUser>;
   logout: () => Promise<void>;
+  updateProfile: (data: Partial<UserProfile>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [isLoggedIn, setIsLoggedIn] = useState(() => {
-    return localStorage.getItem('isLoggedIn') === 'true';
-  });
-  const [loading, setLoading] = useState(false);
+  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const mockProfile: UserProfile = {
-    uid: 'mock-user-123',
-    displayName: 'Demo Student',
-    email: 'student@khalsacollege.edu',
-    photoURL: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1974&auto=format&fit=crop',
-    role: 'student',
-    studentId: '2024-KCA-8892',
-    phoneNumber: '+91 98765-43210',
-  };
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (authUser) => {
+      setUser(authUser);
+      if (!authUser) {
+        setProfile(null);
+        setLoading(false);
+      }
+    });
+
+    return () => unsubscribeAuth();
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const unsubscribeProfile = onSnapshot(doc(db, 'users', user.uid), (docSnap) => {
+      if (docSnap.exists()) {
+        setProfile({ uid: user.uid, ...docSnap.data() } as UserProfile);
+      } else {
+        // Initial profile if it doesn't exist
+        const initialProfile: Partial<UserProfile> = {
+          displayName: user.displayName || 'New Scholar',
+          email: user.email,
+          photoURL: user.photoURL,
+          role: 'student'
+        };
+        setProfile({ uid: user.uid, ...initialProfile } as UserProfile);
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribeProfile();
+  }, [user]);
 
   const login = async () => {
-    setIsLoggedIn(true);
-    localStorage.setItem('isLoggedIn', 'true');
+    try {
+      const result = await signInAnonymously(auth);
+      return result.user;
+    } catch (error) {
+      console.error('Login failed:', error);
+      throw error;
+    }
   };
 
   const logout = async () => {
-    setIsLoggedIn(false);
-    localStorage.removeItem('isLoggedIn');
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
+
+  const updateProfile = async (data: Partial<UserProfile>) => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+    try {
+      await setDoc(doc(db, 'users', currentUser.uid), {
+        ...data,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    } catch (error) {
+      console.error('Profile update failed:', error);
+      throw error;
+    }
   };
 
   return (
     <AuthContext.Provider value={{ 
-      user: isLoggedIn ? { uid: 'mock-user-123' } : null, 
-      profile: isLoggedIn ? mockProfile : null, 
+      user, 
+      profile, 
       loading, 
-      isLoggedIn, 
+      isLoggedIn: !!user, 
       login, 
-      logout 
+      logout,
+      updateProfile 
     }}>
-      {children}
+      {!loading && children}
     </AuthContext.Provider>
   );
 }

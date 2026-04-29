@@ -198,9 +198,9 @@ export default function Resources() {
                   <div className="mt-8 pt-4 border-t border-gray-50 flex items-center justify-between">
                       <div className="flex items-center gap-2">
                           <div className="w-8 h-8 rounded-full bg-brand-navy text-white text-[10px] flex items-center justify-center font-bold">
-                              {res.authorName.charAt(0)}
+                              {res.authorName?.charAt(0) || 'S'}
                           </div>
-                          <span className="text-xs font-semibold text-gray-600">{res.authorName}</span>
+                          <span className="text-xs font-semibold text-gray-600 truncate max-w-[100px]">{res.authorName || 'Scholar'}</span>
                       </div>
                       <button 
                         className="text-gray-400 hover:text-brand-navy"

@@ -2,13 +2,84 @@ import Hero from '../components/Hero';
 import Features from '../components/Features';
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
-import { MessageSquare, Users, ShieldCheck, ArrowRight, HelpCircle } from 'lucide-react';
+import { MessageSquare, Users, ShieldCheck, ArrowRight, HelpCircle, FileText, Download, Verified } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 export default function Home() {
+  const [latestResources, setLatestResources] = useState<any[]>([]);
+
+  useEffect(() => {
+    const q = query(collection(db, 'resources'), orderBy('createdAt', 'desc'), limit(4));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setLatestResources(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+    return () => unsubscribe();
+  }, []);
+
   return (
     <>
       <Hero />
       <Features />
+
+      {/* Latest Resources Section */}
+      <section className="py-24 bg-gray-50/50">
+        <div className="container-custom">
+          <div className="flex items-center justify-between mb-12">
+             <div className="flex items-center gap-3">
+                <div className="h-px w-10 bg-brand-gold" />
+                <span className="text-brand-gold font-bold uppercase tracking-widest text-xs">Recently Contributed</span>
+             </div>
+             <Link to="/resources" className="text-brand-navy font-bold hover:underline flex items-center gap-1">
+                View All <ArrowRight size={16} />
+             </Link>
+          </div>
+          <h2 className="text-4xl font-serif font-bold text-brand-navy mb-12">Knowledge Shared <span className="italic">Recently</span></h2>
+          
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {latestResources.map((res) => (
+              <motion.div 
+                key={res.id}
+                whileHover={{ y: -5 }}
+                className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm hover:shadow-lg transition-all flex flex-col border-t-4 border-t-brand-gold"
+              >
+                <div className="flex items-center justify-between mb-6">
+                    <span className="text-[10px] uppercase font-bold tracking-widest text-gray-400 flex items-center gap-1">
+                        <FileText size={12} /> {res.type}
+                    </span>
+                    {res.verified && (
+                        <span className="px-2 py-0.5 bg-brand-gold/10 text-brand-gold text-[10px] font-bold rounded flex items-center gap-1">
+                            Verified
+                        </span>
+                    )}
+                </div>
+                
+                <h4 className="text-xl font-bold text-brand-navy mb-auto leading-snug line-clamp-2 font-serif">
+                    {res.title}
+                </h4>
+                
+                <div className="mt-8 pt-4 border-t border-gray-50 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-brand-navy text-white text-[10px] flex items-center justify-center font-bold">
+                            {res.authorName?.charAt(0) || 'S'}
+                        </div>
+                        <span className="text-xs font-semibold text-gray-600 truncate max-w-[100px]">{res.authorName || 'Scholar'}</span>
+                    </div>
+                    <button className="text-gray-400 hover:text-brand-navy">
+                        <Download size={18} />
+                    </button>
+                </div>
+              </motion.div>
+            ))}
+            {latestResources.length === 0 && (
+              <div className="col-span-full py-12 text-center bg-white rounded-[2rem] border border-dashed border-gray-200">
+                <p className="text-gray-400 font-bold">Be the first to contribute to our library!</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
       
       {/* Community Teaser Section */}
       <section className="py-24 bg-white overflow-hidden">

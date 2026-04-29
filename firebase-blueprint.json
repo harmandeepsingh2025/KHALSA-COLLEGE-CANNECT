@@ -10,9 +10,31 @@
         "email": { "type": "string", "format": "email" },
         "photoURL": { "type": "string" },
         "role": { "type": "string", "enum": ["student", "instructor", "admin"] },
+        "studentId": { "type": "string" },
+        "phoneNumber": { "type": "string" },
+        "academicYear": { "type": "string" },
+        "bio": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["uid", "email", "role"]
+      "required": ["role"]
+    },
+    "Resource": {
+      "title": "Academic Resource",
+      "description": "Shared academic files and notes",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "subject": { "type": "string" },
+        "academicYear": { "type": "string" },
+        "type": { "type": "string", "enum": ["Class Notes", "PYQ", "Assignment"] },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "verified": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "subject", "type", "authorId", "authorName", "createdAt"]
     },
     "Post": {
       "title": "Community Post",
@@ -64,6 +86,10 @@
     "/channels/{channelId}/messages/{messageId}": {
       "schema": "ChatMessage",
       "description": "Chat messages within dedicated academic channels"
+    },
+    "/resources/{resourceId}": {
+      "schema": "Resource",
+      "description": "Shared academic study materials"
     }
   }
 }

@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
+import { db } from '../lib/firebase';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { 
   User, 
   Mail, 
@@ -12,19 +14,55 @@ import {
   Settings,
   Bell,
   ShieldCheck,
-  Award
+  Award,
+  Save,
+  X,
+  Edit2
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function Profile() {
-  const { profile } = useAuth();
+  const { profile, updateProfile } = useAuth();
+  const [isEditing, setIsEditing] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [editData, setEditData] = useState({
+    displayName: profile?.displayName || '',
+    email: profile?.email || '',
+    phoneNumber: profile?.phoneNumber || '',
+    studentId: profile?.studentId || '',
+    academicYear: profile?.academicYear || '',
+    bio: (profile as any)?.bio || 'Academic scholar at Khalsa College.'
+  });
+
+  const [resourceCount, setResourceCount] = useState(0);
+
+  useEffect(() => {
+    if (!profile?.uid) return;
+    const q = query(collection(db, 'resources'), where('authorId', '==', profile.uid));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setResourceCount(snapshot.size);
+    });
+    return () => unsubscribe();
+  }, [profile?.uid]);
 
   if (!profile) return null;
 
+  const handleSave = async () => {
+    setLoading(true);
+    try {
+      await updateProfile(editData);
+      setIsEditing(false);
+    } catch (error) {
+      alert('Failed to update profile');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const stats = [
-    { label: "Resources Shared", value: "12", icon: <BookOpen className="text-blue-500" size={20} /> },
-    { label: "Community Rep", value: "450", icon: <Award className="text-orange-500" size={20} /> },
-    { label: "Badges Earned", value: "4", icon: <ShieldCheck className="text-green-500" size={20} /> },
+    { label: "Resources Shared", value: resourceCount.toString(), icon: <BookOpen className="text-blue-500" size={20} /> },
+    { label: "Community Rep", value: (profile as any).reputation || "0", icon: <Award className="text-orange-500" size={20} /> },
+    { label: "Verified Stats", value: (profile as any).verifiedCount || "0", icon: <ShieldCheck className="text-green-500" size={20} /> },
   ];
 
   return (
@@ -49,19 +87,47 @@ export default function Profile() {
                   />
                   <div className="absolute bottom-2 right-2 w-6 h-6 bg-green-500 border-4 border-white rounded-full" />
                 </div>
-                <div className="mb-4">
-                  <h1 className="text-3xl font-serif font-bold text-brand-navy mb-1">{profile.displayName}</h1>
+                <div className="mb-4 flex-grow">
+                  {isEditing ? (
+                    <input 
+                      type="text" 
+                      value={editData.displayName}
+                      onChange={(e) => setEditData({...editData, displayName: e.target.value})}
+                      className="text-3xl font-serif font-bold text-brand-navy mb-1 bg-gray-50 border-b-2 border-brand-gold outline-none px-2 w-full max-w-md"
+                    />
+                  ) : (
+                    <h1 className="text-3xl font-serif font-bold text-brand-navy mb-1">{profile.displayName}</h1>
+                  )}
                   <p className="text-brand-gold font-bold uppercase tracking-widest text-[10px]">Active {profile.role}</p>
                 </div>
                 <div className="md:ml-auto mb-4 flex gap-3">
-                   <button className="flex items-center gap-2 px-6 py-2 bg-gray-50 text-gray-400 font-bold rounded-xl hover:bg-gray-100 transition-colors">
-                     <Settings size={18} />
-                     <span className="text-sm">Settings</span>
-                   </button>
-                   <Link to="/community/feed" className="btn-primary flex items-center gap-2 px-6 py-2">
-                     <Bell size={18} />
-                     <span className="text-sm">Activity</span>
-                   </Link>
+                   {isEditing ? (
+                     <>
+                        <button 
+                          onClick={() => setIsEditing(false)}
+                          className="flex items-center gap-2 px-6 py-2 bg-gray-50 text-gray-500 font-bold rounded-xl hover:bg-gray-100 transition-colors"
+                        >
+                          <X size={18} />
+                          <span className="text-sm">Cancel</span>
+                        </button>
+                        <button 
+                          onClick={handleSave}
+                          disabled={loading}
+                          className="flex items-center gap-2 px-6 py-2 bg-brand-navy text-white font-bold rounded-xl hover:bg-brand-navy/90 transition-all disabled:opacity-50"
+                        >
+                          {loading ? <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" /> : <Save size={18} />}
+                          <span className="text-sm">Store Profile</span>
+                        </button>
+                     </>
+                   ) : (
+                     <button 
+                       onClick={() => setIsEditing(true)}
+                       className="flex items-center gap-2 px-6 py-2 bg-gray-50 text-gray-400 font-bold rounded-xl hover:bg-gray-100 transition-colors"
+                     >
+                       <Edit2 size={18} />
+                       <span className="text-sm">Edit Profile</span>
+                     </button>
+                   )}
                 </div>
              </div>
 
@@ -78,28 +144,70 @@ export default function Profile() {
                             <div className="p-3 bg-white rounded-xl text-gray-400"><IdCard size={20} /></div>
                             <div>
                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Student ID</p>
-                               <p className="font-bold text-brand-navy">{profile.studentId}</p>
+                               {isEditing ? (
+                                 <input 
+                                   type="text" 
+                                   value={editData.studentId}
+                                   onChange={(e) => setEditData({...editData, studentId: e.target.value})}
+                                   className="font-bold text-brand-navy bg-transparent border-b border-gray-200 outline-none w-full"
+                                 />
+                               ) : (
+                                 <p className="font-bold text-brand-navy">{profile.studentId || 'Not set'}</p>
+                               )}
                             </div>
                          </div>
                          <div className="bg-gray-50 p-6 rounded-2xl flex items-center gap-4">
                             <div className="p-3 bg-white rounded-xl text-gray-400"><Phone size={20} /></div>
                             <div>
                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Phone Number</p>
-                               <p className="font-bold text-brand-navy">{profile.phoneNumber}</p>
+                               {isEditing ? (
+                                 <input 
+                                   type="text" 
+                                   value={editData.phoneNumber}
+                                   onChange={(e) => setEditData({...editData, phoneNumber: e.target.value})}
+                                   className="font-bold text-brand-navy bg-transparent border-b border-gray-200 outline-none w-full"
+                                   placeholder="+91 00000-00000"
+                                 />
+                               ) : (
+                                 <p className="font-bold text-brand-navy">{profile.phoneNumber || 'Complete your profile'}</p>
+                               )}
                             </div>
                          </div>
                          <div className="bg-gray-50 p-6 rounded-2xl flex items-center gap-4">
                             <div className="p-3 bg-white rounded-xl text-gray-400"><Mail size={20} /></div>
                             <div>
                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">College Email</p>
-                               <p className="font-bold text-brand-navy">{profile.email}</p>
+                               {isEditing ? (
+                                 <input 
+                                   type="email" 
+                                   value={editData.email}
+                                   onChange={(e) => setEditData({...editData, email: e.target.value})}
+                                   className="font-bold text-brand-navy bg-transparent border-b border-gray-200 outline-none w-full"
+                                   placeholder="name@khalsacollege.edu"
+                                 />
+                               ) : (
+                                 <p className="font-bold text-brand-navy">{profile.email || 'Complete your profile'}</p>
+                               )}
                             </div>
                          </div>
                          <div className="bg-gray-50 p-6 rounded-2xl flex items-center gap-4">
                             <div className="p-3 bg-white rounded-xl text-gray-400"><Calendar size={20} /></div>
                             <div>
-                               <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Batch</p>
-                               <p className="font-bold text-brand-navy">2024 - 2026</p>
+                               <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Academic Year</p>
+                               {isEditing ? (
+                                 <select 
+                                   value={editData.academicYear}
+                                   onChange={(e) => setEditData({...editData, academicYear: e.target.value})}
+                                   className="font-bold text-brand-navy bg-transparent border-b border-gray-200 outline-none w-full cursor-pointer"
+                                 >
+                                   <option value="">Select year</option>
+                                   <option value="1st Year">1st Year</option>
+                                   <option value="2nd Year">2nd Year</option>
+                                   <option value="3rd Year">3rd Year</option>
+                                 </select>
+                               ) : (
+                                 <p className="font-bold text-brand-navy">{profile.academicYear || 'Not set'}</p>
+                               )}
                             </div>
                          </div>
                       </div>
@@ -108,12 +216,20 @@ export default function Profile() {
                    <section>
                       <h3 className="text-sm font-black text-brand-navy uppercase tracking-widest mb-6 flex items-center gap-2">
                         <MapPin size={16} />
-                        Academic Focus
+                        About & Biography
                       </h3>
                       <div className="bg-gray-50 p-10 rounded-[2.5rem]">
-                        <p className="text-gray-600 leading-relaxed italic">
-                          "Currently focused on Physics research and contributing to the campus digital library project. Passionate about bringing traditional academic resources to the student community through modern technology."
-                        </p>
+                        {isEditing ? (
+                          <textarea 
+                            value={editData.bio}
+                            onChange={(e) => setEditData({...editData, bio: e.target.value})}
+                            className="bg-transparent text-gray-600 leading-relaxed italic w-full min-h-[100px] outline-none"
+                          />
+                        ) : (
+                          <p className="text-gray-600 leading-relaxed italic">
+                            "{(profile as any).bio || 'Currently contributing to the campus community through digital resources.'}"
+                          </p>
+                        )}
                       </div>
                    </section>
                 </div>
