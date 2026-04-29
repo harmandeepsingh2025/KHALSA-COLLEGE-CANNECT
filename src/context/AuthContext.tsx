@@ -32,7 +32,7 @@ interface AuthContextType {
   isLoggedIn: boolean;
   login: () => Promise<FirebaseUser>;
   logout: () => Promise<void>;
-  updateProfile: (data: Partial<UserProfile>) => Promise<void>;
+  updateProfile: (data: Partial<UserProfile>, uid?: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -94,11 +94,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const updateProfile = async (data: Partial<UserProfile>) => {
-    const currentUser = auth.currentUser;
-    if (!currentUser) return;
+  const updateProfile = async (data: Partial<UserProfile>, uid?: string) => {
+    const targetUid = uid || auth.currentUser?.uid;
+    if (!targetUid) throw new Error('No authenticated user found to update profile.');
+    
     try {
-      await setDoc(doc(db, 'users', currentUser.uid), {
+      await setDoc(doc(db, 'users', targetUid), {
         ...data,
         updatedAt: serverTimestamp()
       }, { merge: true });

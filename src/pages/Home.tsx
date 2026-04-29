@@ -9,19 +9,72 @@ import { db } from '../lib/firebase';
 
 export default function Home() {
   const [latestResources, setLatestResources] = useState<any[]>([]);
+  const [recentUsers, setRecentUsers] = useState<any[]>([]);
 
   useEffect(() => {
-    const q = query(collection(db, 'resources'), orderBy('createdAt', 'desc'), limit(4));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    // Fetch Resources
+    const qRes = query(collection(db, 'resources'), orderBy('createdAt', 'desc'), limit(4));
+    const unsubscribeRes = onSnapshot(qRes, (snapshot) => {
       setLatestResources(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
-    return () => unsubscribe();
+
+    // Fetch Recent Users
+    const qUsers = query(collection(db, 'users'), orderBy('updatedAt', 'desc'), limit(6));
+    const unsubscribeUsers = onSnapshot(qUsers, (snapshot) => {
+      setRecentUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+
+    return () => {
+      unsubscribeRes();
+      unsubscribeUsers();
+    };
   }, []);
 
   return (
     <>
       <Hero />
       <Features />
+
+      {/* Recent Scholars Section */}
+      <section className="py-24 bg-white">
+        <div className="container-custom">
+          <div className="flex items-center gap-3 mb-12">
+            <div className="h-px w-10 bg-brand-navy" />
+            <span className="text-brand-navy font-bold uppercase tracking-widest text-xs">Our Growing Community</span>
+          </div>
+          <h2 className="text-4xl font-serif font-bold text-brand-navy mb-12">Recent <span className="text-brand-gold italic">Scholars</span> Joined</h2>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
+            {recentUsers.map((u) => (
+              <motion.div 
+                key={u.id}
+                initial={{ opacity: 0, scale: 0.9 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                viewport={{ once: true }}
+                className="text-center group"
+              >
+                <div className="relative mb-4 inline-block">
+                  <img 
+                    src={u.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.displayName}`} 
+                    alt={u.displayName}
+                    className="w-24 h-24 rounded-full object-cover border-4 border-gray-50 group-hover:border-brand-gold transition-all shadow-sm"
+                  />
+                  <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-brand-navy border-4 border-white rounded-full flex items-center justify-center text-[10px] text-white font-bold">
+                    {u.academicYear?.charAt(0) || '1'}
+                  </div>
+                </div>
+                <h4 className="font-bold text-brand-navy truncate px-2">{u.displayName}</h4>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{u.academicYear || 'New Student'}</p>
+              </motion.div>
+            ))}
+            {recentUsers.length === 0 && (
+              <div className="col-span-full py-12 text-center bg-gray-50 rounded-3xl border border-dashed border-gray-200">
+                <p className="text-gray-400 font-bold">Join us and be the next scholar on board!</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
 
       {/* Latest Resources Section */}
       <section className="py-24 bg-gray-50/50">

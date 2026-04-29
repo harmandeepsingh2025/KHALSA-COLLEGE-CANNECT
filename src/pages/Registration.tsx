@@ -20,18 +20,21 @@ export default function Registration() {
     try {
       const newUser = await login();
       
-      // We pass the data to updateProfile which will be saved to Firestore
       await updateProfile({
-        uid: newUser.uid,
         ...formData,
         role: 'student',
         email: newUser.email || '',
         photoURL: `https://api.dicebear.com/7.x/avataaars/svg?seed=${formData.displayName}`,
-        createdAt: new Date().toISOString() // Using string for now or let updateProfile handle it
-      });
+      }, newUser.uid);
+      
       navigate('/');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Registration error:', error);
+      if (error.code === 'auth/admin-restricted-operation') {
+        alert('CRITICAL: Anonymous Authentication is disabled. Please go to your Firebase Console > Authentication > Sign-in method and enable "Anonymous".');
+      } else {
+        alert(`Registration failed: ${error.message || 'Unknown error'}`);
+      }
     } finally {
       setLoading(false);
     }

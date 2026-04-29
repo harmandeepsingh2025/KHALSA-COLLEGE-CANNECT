@@ -42,7 +42,7 @@ service cloud.firestore {
     
     function isValidUser(data) {
       return data.keys().hasAll(['role']) &&
-             data.keys().size() <= 10 &&
+             data.keys().size() <= 15 &&
              data.role in ['student', 'instructor', 'admin'] &&
              (data.get('email', '') is string) &&
              (data.get('displayName', '') is string) &&
@@ -54,7 +54,7 @@ service cloud.firestore {
 
     function isValidResource(data) {
       return data.keys().hasAll(['title', 'subject', 'type', 'authorId', 'authorName', 'createdAt']) &&
-             data.keys().size() <= 10 &&
+             data.keys().size() <= 15 &&
              data.title is string && data.title.size() <= 200 &&
              data.subject is string && data.subject.size() <= 100 &&
              data.type in ['Class Notes', 'PYQ', 'Assignment'] &&
@@ -68,6 +68,7 @@ service cloud.firestore {
 
     function isValidPost(data) {
       return data.keys().hasAll(['authorId', 'content', 'createdAt']) &&
+             data.keys().size() <= 15 &&
              data.authorId == request.auth.uid &&
              data.content is string && data.content.size() <= 5000 &&
              data.createdAt == request.time;
@@ -75,6 +76,7 @@ service cloud.firestore {
 
     function isValidChatMessage(data) {
       return data.keys().hasAll(['channelId', 'userId', 'content', 'createdAt']) &&
+             data.keys().size() <= 10 &&
              data.userId == request.auth.uid &&
              data.content is string && data.content.size() <= 2000 &&
              data.createdAt == request.time;
@@ -83,16 +85,15 @@ service cloud.firestore {
     // --- Collections ---
 
     match /users/{userId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn(); 
+      allow read: if true; 
       allow create: if isOwner(userId) && isValidUser(incoming());
       allow update: if (isOwner(userId) || isAdmin()) && 
                     isValidUser(incoming()) && 
-                    (isAdmin() || incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'email', 'studentId', 'phoneNumber', 'academicYear', 'bio']));
+                    (isAdmin() || incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'email', 'studentId', 'phoneNumber', 'academicYear', 'bio', 'updatedAt']));
     }
 
     match /resources/{resourceId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow create: if isSignedIn() && isValidResource(incoming());
       allow update: if (isOwner(existing().authorId) || isAdmin()) &&
                     isValidResource(incoming()) &&
