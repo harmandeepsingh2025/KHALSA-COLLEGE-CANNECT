@@ -36,40 +36,54 @@ export default function Home() {
       <Features />
 
       {/* Recent Scholars Section */}
-      <section className="py-24 bg-white">
+      <section className="py-24 bg-white overflow-hidden">
         <div className="container-custom">
-          <div className="flex items-center gap-3 mb-12">
+          <div className="flex items-center gap-3 mb-4">
             <div className="h-px w-10 bg-brand-navy" />
-            <span className="text-brand-navy font-bold uppercase tracking-widest text-xs">Our Growing Community</span>
+            <span className="text-brand-navy font-bold uppercase tracking-widest text-xs">Community Spirit</span>
           </div>
-          <h2 className="text-4xl font-serif font-bold text-brand-navy mb-12">Recent <span className="text-brand-gold italic">Scholars</span> Joined</h2>
+          <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-6">
+            <div>
+              <h2 className="text-4xl font-serif font-bold text-brand-navy">Recent <span className="text-brand-gold italic">Scholars</span></h2>
+              <p className="text-gray-500 mt-2">New members joining our academic brotherhood.</p>
+            </div>
+            <div className="hidden md:block">
+              <div className="px-4 py-2 bg-gray-50 border border-gray-100 rounded-full flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Live Updates</span>
+              </div>
+            </div>
+          </div>
           
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
-            {recentUsers.map((u) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {recentUsers.map((u, index) => (
               <motion.div 
                 key={u.id}
-                initial={{ opacity: 0, scale: 0.9 }}
-                whileInView={{ opacity: 1, scale: 1 }}
+                initial={{ opacity: 0, x: -20 }}
+                whileInView={{ opacity: 1, x: 0 }}
                 viewport={{ once: true }}
-                className="text-center group"
+                transition={{ delay: index * 0.05 }}
+                className="group flex items-center justify-between p-5 bg-gray-50 rounded-2xl hover:bg-brand-navy transition-all duration-300 shadow-sm hover:shadow-xl"
               >
-                <div className="relative mb-4 inline-block">
-                  <img 
-                    src={u.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.displayName}`} 
-                    alt={u.displayName}
-                    className="w-24 h-24 rounded-full object-cover border-4 border-gray-50 group-hover:border-brand-gold transition-all shadow-sm"
-                  />
-                  <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-brand-navy border-4 border-white rounded-full flex items-center justify-center text-[10px] text-white font-bold">
-                    {u.academicYear?.charAt(0) || '1'}
+                <div className="flex items-center gap-4">
+                  <div className="w-8 h-8 rounded-lg bg-brand-navy text-brand-gold flex items-center justify-center font-serif text-lg font-bold group-hover:bg-brand-gold group-hover:text-brand-navy transition-colors">
+                    {index + 1}
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-brand-navy group-hover:text-white transition-colors truncate max-w-[180px]">{u.displayName}</h4>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest group-hover:text-white/60 transition-colors">{u.academicYear || 'Scholar'}</p>
                   </div>
                 </div>
-                <h4 className="font-bold text-brand-navy truncate px-2">{u.displayName}</h4>
-                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{u.academicYear || 'New Student'}</p>
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                   <div className="px-3 py-1 bg-white/10 rounded-full text-[10px] font-bold text-white uppercase tracking-tighter">
+                      Connected
+                   </div>
+                </div>
               </motion.div>
             ))}
             {recentUsers.length === 0 && (
               <div className="col-span-full py-12 text-center bg-gray-50 rounded-3xl border border-dashed border-gray-200">
-                <p className="text-gray-400 font-bold">Join us and be the next scholar on board!</p>
+                <p className="text-gray-400 font-bold">Waiting for new scholars to join the legacy.</p>
               </div>
             )}
           </div>
@@ -98,9 +112,14 @@ export default function Home() {
                 className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm hover:shadow-lg transition-all flex flex-col border-t-4 border-t-brand-gold"
               >
                 <div className="flex items-center justify-between mb-6">
-                    <span className="text-[10px] uppercase font-bold tracking-widest text-gray-400 flex items-center gap-1">
-                        <FileText size={12} /> {res.type}
-                    </span>
+                    <div className="flex flex-col">
+                      <span className="text-[10px] uppercase font-bold tracking-widest text-brand-gold">
+                          {res.type}
+                      </span>
+                      <span className="text-[9px] uppercase font-bold text-gray-400">
+                          {res.department} • {res.semester}
+                      </span>
+                    </div>
                     {res.verified && (
                         <span className="px-2 py-0.5 bg-brand-gold/10 text-brand-gold text-[10px] font-bold rounded flex items-center gap-1">
                             Verified

@@ -54,7 +54,7 @@ service cloud.firestore {
 
     function isValidResource(data) {
       return data.keys().hasAll(['title', 'subject', 'type', 'authorId', 'authorName', 'createdAt']) &&
-             data.keys().size() <= 15 &&
+             data.keys().size() <= 20 &&
              data.title is string && data.title.size() <= 200 &&
              data.subject is string && data.subject.size() <= 100 &&
              data.type in ['Class Notes', 'PYQ', 'Assignment'] &&
@@ -63,7 +63,10 @@ service cloud.firestore {
              data.createdAt == request.time &&
              (data.get('description', '') is string) &&
              (data.get('academicYear', '') is string) &&
-             (data.get('verified', false) is bool);
+             (data.get('department', '') is string) &&
+             (data.get('semester', '') is string) &&
+             (data.get('verified', false) is bool) &&
+             (data.get('keywords', []) is list);
     }
 
     function isValidPost(data) {
@@ -71,15 +74,21 @@ service cloud.firestore {
              data.keys().size() <= 15 &&
              data.authorId == request.auth.uid &&
              data.content is string && data.content.size() <= 5000 &&
-             data.createdAt == request.time;
+             data.createdAt == request.time &&
+             (data.get('authorName', '') is string) &&
+             (data.get('authorAvatar', '') is string) &&
+             (data.get('authorRole', '') is string);
     }
 
     function isValidChatMessage(data) {
       return data.keys().hasAll(['channelId', 'userId', 'content', 'createdAt']) &&
-             data.keys().size() <= 10 &&
+             data.keys().size() <= 15 &&
              data.userId == request.auth.uid &&
              data.content is string && data.content.size() <= 2000 &&
-             data.createdAt == request.time;
+             data.createdAt == request.time &&
+             (data.get('userName', '') is string) &&
+             (data.get('userAvatar', '') is string) &&
+             (data.get('userRole', '') is string);
     }
 
     // --- Collections ---
@@ -99,28 +108,52 @@ service cloud.firestore {
                     isValidResource(incoming()) &&
                     incoming().authorId == existing().authorId &&
                     incoming().createdAt == existing().createdAt &&
-                    (isAdmin() || incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'subject', 'academicYear', 'type']));
+                    (isAdmin() || incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'subject', 'academicYear', 'type', 'department', 'semester', 'keywords']));
       allow delete: if isOwner(existing().authorId) || isAdmin();
     }
 
     match /posts/{postId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && 
-                    isEmailVerified() && 
                     isValidPost(incoming()) &&
-                    incoming().likesCount == 0 &&
-                    incoming().commentsCount == 0;
-      allow update: if (isOwner(existing().authorId) || isAdmin()) && 
-                    isValidPost(incoming()) && 
-                    incoming().authorId == existing().authorId &&
-                    incoming().createdAt == existing().createdAt &&
-                    (isAdmin() || incoming().diff(existing()).affectedKeys().hasOnly(['content', 'imageUrl', 'tags']));
+                    incoming().get('likesCount', 0) == 0 &&
+                    incoming().get('commentsCount', 0) == 0;
+      allow update: if isSignedIn() && (
+                      (isOwner(existing().authorId) || isAdmin()) && 
+                      isValidPost(incoming()) && 
+                      incoming().authorId == existing().authorId &&
+                      incoming().createdAt == existing().createdAt &&
+                      (isAdmin() || incoming().diff(existing()).affectedKeys().hasOnly(['content', 'imageUrl', 'tags', 'likesCount', 'commentsCount']))
+                    ) || (
+                      // Allow anyone signed in to update likesCount or commentsCount (social interaction)
+                      incoming().diff(existing()).affectedKeys().hasOnly(['likesCount']) ||
+                      incoming().diff(existing()).affectedKeys().hasOnly(['commentsCount'])
+                    );
       allow delete: if isOwner(existing().authorId) || isAdmin();
+
+      match /comments/{commentId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && 
+                      incoming().authorId == request.auth.uid &&
+                      incoming().createdAt == request.time;
+        allow delete: if isOwner(existing().authorId) || isAdmin();
+      }
+    }
+
+    match /channels/{channelId} {
+      allow read: if isSignedIn();
+      allow update: if isAdmin();
     }
 
     match /channels/{channelId}/messages/{messageId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && isEmailVerified() && isValidChatMessage(incoming());
+      allow create: if isSignedIn() && 
+                    isValidChatMessage(incoming()) &&
+                    (
+                      // Only allow if channel is not locked OR user is Admin
+                      get(/databases/$(database)/documents/channels/$(channelId)).data.get('isLocked', false) == false ||
+                      isAdmin()
+                    );
       allow update: if (isOwner(existing().userId) || isAdmin()) &&
                     isValidChatMessage(incoming()) &&
                     incoming().userId == existing().userId &&

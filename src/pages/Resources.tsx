@@ -10,6 +10,8 @@ interface Resource {
   title: string;
   description: string;
   subject: string;
+  department?: string;
+  semester?: string;
   academicYear: string;
   type: string;
   authorName: string;
@@ -20,26 +22,27 @@ interface Resource {
 
 const disciplines = [
   {
-    title: "Computer Science & IT",
+    title: "Computer Science",
     count: "Dynamic",
-    description: "including DSA, Web Technologies, and recent semester PYQs.",
+    description: "DSA, Web Technologies, OS, and semester-wise PYQs.",
     featured: true,
     bg: "bg-brand-navy",
     textColor: "text-white"
   },
   {
-    title: "Commerce & Mgmt",
+    title: "Commerce",
     count: "Dynamic",
-    description: "Accounting, Business Studies, and Marketing notes.",
+    description: "Accounting, Business Studies, Marketing, and Economics.",
     bg: "bg-white",
     textColor: "text-brand-navy"
   },
   {
-    title: "Physical Sciences",
-    count: "Dynamic",
-    description: "Physics, Chemistry, and Mathematics reference materials.",
-    bg: "bg-white",
-    textColor: "text-brand-navy"
+    title: "Other Departments",
+    count: "Coming Soon",
+    description: "Expanding our archive to include Arts, Sciences, and more.",
+    bg: "bg-gray-50",
+    textColor: "text-gray-400",
+    isPlaceholder: true
   }
 ];
 
@@ -68,11 +71,35 @@ export default function Resources() {
   }, []);
 
   const filteredResources = resources.filter(res => {
-    const matchesSearch = res.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                         res.subject.toLowerCase().includes(searchQuery.toLowerCase());
+    const searchTerms = searchQuery.toLowerCase().split(/\s+/).filter(t => t.length > 0);
+    const titleLower = res.title.toLowerCase();
+    const subjectLower = (res.subject || '').toLowerCase();
+    const deptLower = (res.department || '').toLowerCase();
+    
+    const matchesSearch = searchTerms.length === 0 || searchTerms.every(term => 
+      titleLower.includes(term) || subjectLower.includes(term) || deptLower.includes(term)
+    );
+    
     const matchesFilter = filterType === 'All' || res.type === filterType;
     return matchesSearch && matchesFilter;
   });
+
+  const handleDownload = (res: Resource) => {
+    const confirm = window.confirm(`Preparation for download: ${res.title}. This is a community shared document. Proceed?`);
+    if (confirm) {
+      // Simulate file download
+      const link = document.createElement('a');
+      link.href = '#';
+      link.setAttribute('download', `${res.title.replace(/\s+/g, '_')}.pdf`);
+      document.body.appendChild(link);
+      
+      alert(`Initiating secure download for ${res.title}. In production, this would fetch from Firebase Storage.`);
+      
+      setTimeout(() => {
+        document.body.removeChild(link);
+      }, 100);
+    }
+  };
 
   return (
     <div className="pt-20">
@@ -181,9 +208,14 @@ export default function Resources() {
                   className="bg-white border border-gray-100 rounded-xl p-6 shadow-sm hover:shadow-md transition-all flex flex-col border-t-4 border-t-gray-50 hover:border-t-brand-gold"
                 >
                   <div className="flex items-center justify-between mb-6">
-                      <span className="text-[10px] uppercase font-bold tracking-widest text-gray-400 flex items-center gap-1">
-                          <FileText size={12} /> {res.type} • {res.academicYear}
-                      </span>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[10px] uppercase font-bold tracking-widest text-brand-gold">
+                            {res.type}
+                        </span>
+                        <span className="text-[9px] uppercase font-bold tracking-tighter text-gray-400">
+                            {res.department} • {res.semester}
+                        </span>
+                      </div>
                       {res.verified && (
                           <span className="px-2 py-0.5 bg-brand-gold/10 text-brand-gold text-[10px] font-bold rounded flex items-center gap-1">
                               <Verified size={10} /> Verified
@@ -194,19 +226,20 @@ export default function Resources() {
                   <h4 className="text-xl font-bold text-brand-navy mb-auto leading-snug line-clamp-2">
                       {res.title}
                   </h4>
+                  <p className="text-xs text-gray-500 mt-2 line-clamp-2 italic">{res.subject}</p>
                   
                   <div className="mt-8 pt-4 border-t border-gray-50 flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-brand-navy text-white text-[10px] flex items-center justify-center font-bold">
+                          <div className="w-8 h-8 rounded-full bg-brand-navy/10 text-brand-navy text-[10px] flex items-center justify-center font-bold border border-brand-navy/5">
                               {res.authorName?.charAt(0) || 'S'}
                           </div>
                           <span className="text-xs font-semibold text-gray-600 truncate max-w-[100px]">{res.authorName || 'Scholar'}</span>
                       </div>
                       <button 
-                        className="text-gray-400 hover:text-brand-navy"
-                        onClick={() => alert('Download starting... (Files are currently simulations)')}
+                        className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-50 text-gray-400 hover:bg-brand-navy hover:text-white transition-all shadow-sm"
+                        onClick={() => handleDownload(res)}
                       >
-                          <Download size={18} />
+                          <Download size={14} />
                       </button>
                   </div>
                 </motion.div>

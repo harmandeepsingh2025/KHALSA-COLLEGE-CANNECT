@@ -13,7 +13,9 @@ import {
   ArrowRight,
   Plus,
   Send,
-  X
+  X,
+  MessageSquare,
+  Activity
 } from 'lucide-react';
 import CommunityLayout from '../components/CommunityLayout';
 import { db } from '../lib/firebase';
@@ -25,14 +27,18 @@ import {
   serverTimestamp, 
   query, 
   orderBy, 
-  limit 
+  limit,
+  updateDoc,
+  doc,
+  increment,
+  getDocs
 } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/errorHandlers';
 
 const trending = [
-  { group: "STUDY GROUPS", title: "Midterm Prep: Organic Chemistry", participants: "45 active participants" },
-  { group: "CAMPUS EVENTS", title: "Annual Heritage Debate Finals", participants: "Starting tomorrow at 6 PM" },
-  { group: "CAREER", title: "Tech Internship Drive 2024", participants: "12 new postings added" }
+  { group: "ACADEMIC", title: "New Semester Syllabus Discussion", participants: "128 Scholars interacting" },
+  { group: "CONFERENCE", title: "Global Heritage Seminar 2024", participants: "Registration open now" },
+  { group: "RESEARCH", title: "Physics Lab A: Advanced Findings", participants: "8 new peer reviews" }
 ];
 
 export default function CommunityFeed() {
@@ -41,33 +47,99 @@ export default function CommunityFeed() {
   const [showPostModal, setShowPostModal] = useState(false);
   const [newPostContent, setNewPostContent] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeComments, setActiveComments] = useState<string | null>(null);
+  const [newComment, setNewComment] = useState("");
+  const [commentsMap, setCommentsMap] = useState<Record<string, any[]>>({});
 
   useEffect(() => {
     const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'), limit(50));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const postsData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setPosts(postsData);
+      setPosts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, (error) => {
        handleFirestoreError(error, OperationType.GET, 'posts');
     });
-
     return () => unsubscribe();
   }, []);
 
+  const handleLike = async (postId: string) => {
+    try {
+      await updateDoc(doc(db, 'posts', postId), {
+        likesCount: increment(1)
+      });
+    } catch (error) {
+      console.error("Like failed:", error);
+    }
+  };
+
+  const [commentingId, setCommentingId] = useState<string | null>(null);
+
+  const toggleComments = async (postId: string) => {
+    if (activeComments === postId) {
+      setActiveComments(null);
+      return;
+    }
+    
+    setActiveComments(postId);
+    // Fetch comments for this post
+    try {
+      const q = query(collection(db, `posts/${postId}/comments`), orderBy('createdAt', 'asc'));
+      const snap = await getDocs(q);
+      setCommentsMap(prev => ({
+        ...prev,
+        [postId]: snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      }));
+    } catch (error) {
+      console.error("Fetch comments failed:", error);
+    }
+  };
+
+  const handleAddComment = async (postId: string) => {
+    if (!newComment.trim() || !user) return;
+    
+    setCommentingId(postId);
+    try {
+      const commentData = {
+        authorId: user.uid,
+        authorName: profile?.displayName || 'Scholar',
+        authorAvatar: profile?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
+        content: newComment,
+        createdAt: serverTimestamp()
+      };
+
+      await addDoc(collection(db, `posts/${postId}/comments`), commentData);
+      
+      await updateDoc(doc(db, 'posts', postId), {
+        commentsCount: increment(1)
+      });
+      
+      setNewComment("");
+      
+      // Refresh local state for immediate feedback
+      const q = query(collection(db, `posts/${postId}/comments`), orderBy('createdAt', 'asc'));
+      const snap = await getDocs(q);
+      setCommentsMap(prev => ({
+        ...prev,
+        [postId]: snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      }));
+    } catch (error) {
+      console.error("Comment failed:", error);
+      alert("Failed to post reply. Please try again.");
+    } finally {
+      setCommentingId(null);
+    }
+  };
+
   const handleCreatePost = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPostContent.trim() || !user || !profile) return;
+    if (!newPostContent.trim() || !user) return;
 
     setIsSubmitting(true);
     try {
       await addDoc(collection(db, 'posts'), {
         authorId: user.uid,
-        authorName: profile.displayName || user.displayName || 'Anonymous',
-        authorAvatar: profile.photoURL || user.photoURL || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1974&auto=format&fit=crop',
-        authorRole: profile.role,
+        authorName: profile?.displayName || user.displayName || 'Scholar',
+        authorAvatar: profile?.photoURL || user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
+        authorRole: profile?.role || 'Student',
         content: newPostContent,
         tags: ["#General"],
         likesCount: 0,
@@ -148,23 +220,84 @@ export default function CommunityFeed() {
               )}
               
               {/* Post Footer */}
-              <div className="px-6 py-4 border-t border-gray-50 flex items-center justify-between">
-                <div className="flex items-center gap-8">
-                   <button className="flex items-center gap-2 text-gray-400 hover:text-red-500 font-bold transition-colors">
-                     <Heart size={20} />
-                     <span className="text-sm">{post.likesCount || 0}</span>
-                   </button>
-                   <button className="flex items-center gap-2 text-gray-400 hover:text-brand-navy font-bold transition-colors">
-                     <MessageCircle size={20} />
-                     <span className="text-sm">{post.commentsCount || 0}</span>
-                   </button>
-                   <button className="flex items-center gap-2 text-gray-400 hover:text-brand-navy font-bold transition-colors">
-                     <Share2 size={20} />
-                   </button>
+              <div className="px-6 py-4 border-t border-gray-50 bg-white">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-8">
+                    <button 
+                      onClick={() => handleLike(post.id)}
+                      className="flex items-center gap-2 text-gray-400 hover:text-red-500 font-bold transition-all group"
+                    >
+                      <Heart size={20} className="group-active:scale-125 transition-transform" />
+                      <span className="text-sm">{post.likesCount || 0}</span>
+                    </button>
+                    <button 
+                      onClick={() => toggleComments(post.id)}
+                      className={`flex items-center gap-2 font-bold transition-colors ${activeComments === post.id ? 'text-brand-navy' : 'text-gray-400 hover:text-brand-navy'}`}
+                    >
+                      <MessageCircle size={20} />
+                      <span className="text-sm">{post.commentsCount || 0}</span>
+                    </button>
+                    <button className="flex items-center gap-2 text-gray-400 hover:text-brand-navy font-bold transition-colors">
+                      <Share2 size={20} />
+                    </button>
+                  </div>
+                  <button className="text-gray-400 hover:text-brand-gold transition-colors">
+                    <Bookmark size={20} />
+                  </button>
                 </div>
-                <button className="text-gray-400 hover:text-brand-gold transition-colors">
-                  <Bookmark size={20} />
-                </button>
+
+                {/* Comments Section */}
+                {activeComments === post.id && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="mt-6 pt-6 border-t border-gray-50"
+                  >
+                    <div className="space-y-4 mb-6 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                      {commentsMap[post.id]?.map((comment) => (
+                        <div key={comment.id} className="flex gap-3">
+                          <img src={comment.authorAvatar} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" />
+                          <div className="bg-gray-50 rounded-2xl p-3 flex-grow">
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="font-bold text-brand-navy text-xs">{comment.authorName}</span>
+                              <span className="text-[10px] text-gray-400">{comment.createdAt?.toDate ? comment.createdAt.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Now'}</span>
+                            </div>
+                            <p className="text-sm text-gray-600 leading-relaxed">{comment.content}</p>
+                          </div>
+                        </div>
+                      ))}
+                      {(commentsMap[post.id]?.length === 0 || !commentsMap[post.id]) && (
+                        <p className="text-center text-xs text-gray-400 py-4 italic">No replies yet. Start the conversation!</p>
+                      )}
+                    </div>
+
+                    <div className="flex gap-3 items-center">
+                      <img src={profile?.photoURL || user?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.uid}`} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" />
+                      <div className="flex-grow relative">
+                        <input 
+                          type="text" 
+                          value={newComment}
+                          disabled={commentingId === post.id}
+                          onChange={(e) => setNewComment(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && handleAddComment(post.id)}
+                          placeholder={commentingId === post.id ? "Posting..." : "Write a reply..."}
+                          className="w-full bg-gray-50 border-none rounded-full py-2 pl-4 pr-10 text-sm focus:ring-1 focus:ring-brand-gold disabled:opacity-50"
+                        />
+                        <button 
+                          onClick={() => handleAddComment(post.id)}
+                          disabled={commentingId === post.id || !newComment.trim()}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-brand-navy hover:text-brand-gold transition-colors disabled:text-gray-300"
+                        >
+                          {commentingId === post.id ? (
+                            <div className="w-4 h-4 border-2 border-brand-navy/30 border-t-brand-navy rounded-full animate-spin" />
+                          ) : (
+                            <Send size={16} />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
               </div>
             </motion.div>
           ))}

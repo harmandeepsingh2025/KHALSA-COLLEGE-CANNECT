@@ -1,6 +1,6 @@
-import { Upload as UploadIcon, FileText, ChevronDown, CheckCircle2 } from 'lucide-react';
+import { Upload as UploadIcon, FileText, ChevronDown, CheckCircle2, X as CloseIcon } from 'lucide-react';
 import { motion } from 'motion/react';
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -12,25 +12,81 @@ export default function Upload() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     subject: '',
-    academicYear: '',
+    department: 'Computer Science',
+    semester: '1st Semester',
+    academicYear: '2023-24',
     type: 'Class Notes'
   });
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFiles(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleFiles = (file: File) => {
+    // 200MB limit as requested
+    const MAX_SIZE = 200 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      alert("File size exceeds 200MB limit. Please upload a smaller document.");
+      return;
+    }
+    setSelectedFile(file);
+  };
+
+  const generateSearchKeywords = (title: string) => {
+    const words = title.toLowerCase().split(/\W+/).filter(w => w.length > 1);
+    const keywords = new Set<string>();
+    words.forEach(word => {
+      for (let i = 1; i <= word.length; i++) {
+        keywords.add(word.substring(0, i));
+      }
+    });
+    return Array.from(keywords);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profile) return;
+    if (!selectedFile) {
+      alert("Please select a file to upload.");
+      return;
+    }
     
     setLoading(true);
     try {
+      // Create searchable keywords from title
+      const keywords = generateSearchKeywords(formData.title);
+      
       await addDoc(collection(db, 'resources'), {
         ...formData,
         authorId: profile.uid,
         authorName: profile.displayName,
+        fileName: selectedFile.name,
+        fileSize: selectedFile.size,
+        fileType: selectedFile.type,
+        keywords: keywords, // For advanced searching
         createdAt: serverTimestamp(),
         verified: false
       });
@@ -105,43 +161,63 @@ export default function Upload() {
                         
                         <div className="grid md:grid-cols-2 gap-6">
                             <div>
-                                <label className="label-field">Subject</label>
+                                <label className="label-field">Department</label>
                                 <div className="relative">
                                     <select 
                                       className="input-field appearance-none cursor-pointer" 
                                       required
-                                      value={formData.subject}
-                                      onChange={(e) => setFormData({...formData, subject: e.target.value})}
+                                      value={formData.department}
+                                      onChange={(e) => setFormData({...formData, department: e.target.value})}
                                     >
-                                        <option value="">Select a subject</option>
-                                        <option>Computer Science</option>
-                                        <option>Mathematics</option>
-                                        <option>Physics</option>
-                                        <option>Chemistry</option>
-                                        <option>Commerce</option>
-                                        <option>English</option>
-                                        <option>Punjabi</option>
+                                        <option value="Computer Science">Computer Science</option>
+                                        <option value="Commerce">Commerce</option>
+                                    </select>
+                                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={20} />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="label-field">Subject</label>
+                                <input 
+                                    type="text" 
+                                    required
+                                    value={formData.subject}
+                                    onChange={(e) => setFormData({...formData, subject: e.target.value})}
+                                    className="input-field" 
+                                    placeholder="e.g., Data Structures"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid md:grid-cols-2 gap-6">
+                            <div>
+                                <label className="label-field">Semester</label>
+                                <div className="relative">
+                                    <select 
+                                      className="input-field appearance-none cursor-pointer" 
+                                      required
+                                      value={formData.semester}
+                                      onChange={(e) => setFormData({...formData, semester: e.target.value})}
+                                    >
+                                        <option value="1st Semester">1st Semester</option>
+                                        <option value="2nd Semester">2nd Semester</option>
+                                        <option value="3rd Semester">3rd Semester</option>
+                                        <option value="4th Semester">4th Semester</option>
+                                        <option value="5th Semester">5th Semester</option>
+                                        <option value="6th Semester">6th Semester</option>
                                     </select>
                                     <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={20} />
                                 </div>
                             </div>
                             <div>
                                 <label className="label-field">Academic Year</label>
-                                <div className="relative">
-                                    <select 
-                                      className="input-field appearance-none cursor-pointer" 
-                                      required
-                                      value={formData.academicYear}
-                                      onChange={(e) => setFormData({...formData, academicYear: e.target.value})}
-                                    >
-                                        <option value="">Select year</option>
-                                        <option>1st Year</option>
-                                        <option>2nd Year</option>
-                                        <option>3rd Year</option>
-                                        <option>Post Graduate</option>
-                                    </select>
-                                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={20} />
-                                </div>
+                                <input 
+                                    type="text" 
+                                    required
+                                    value={formData.academicYear}
+                                    onChange={(e) => setFormData({...formData, academicYear: e.target.value})}
+                                    className="input-field" 
+                                    placeholder="e.g., 2023-24"
+                                />
                             </div>
                         </div>
                         
@@ -173,18 +249,53 @@ export default function Upload() {
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
                     <h2 className="text-2xl font-bold text-brand-navy mb-8">Upload Document</h2>
                     
-                    <div className="border-4 border-dashed border-gray-100 rounded-3xl p-12 text-center group hover:border-brand-gold/20 transition-all cursor-pointer">
-                        <div className="mb-6 inline-flex p-6 bg-brand-navy/5 rounded-2xl text-brand-navy group-hover:bg-brand-navy group-hover:text-white transition-all">
-                            <UploadIcon size={32} />
-                        </div>
-                        <p className="text-xl font-bold text-brand-navy mb-2">Select file to contribute</p>
-                        <p className="text-gray-500 mb-8 text-sm">PDF, DOCX, or Images accepted</p>
+                    <div 
+                      onDragEnter={handleDrag}
+                      onDragLeave={handleDrag}
+                      onDragOver={handleDrag}
+                      onDrop={handleDrop}
+                      onClick={() => fileInputRef.current?.click()}
+                      className={`border-4 border-dashed rounded-3xl p-12 text-center group transition-all cursor-pointer ${
+                        dragActive ? 'border-brand-gold bg-brand-gold/5' : 'border-gray-100 hover:border-brand-gold/20'
+                      } ${selectedFile ? 'border-green-100 bg-green-50/20' : ''}`}
+                    >
+                        <input 
+                          type="file" 
+                          ref={fileInputRef} 
+                          onChange={(e) => e.target.files && handleFiles(e.target.files[0])}
+                          className="hidden" 
+                        />
                         
-                        <div className="flex items-center justify-center gap-6 text-sm text-gray-400 font-medium">
-                            <span className="flex items-center gap-1.5"><FileText size={16} /> PDF</span>
-                            <span className="flex items-center gap-1.5"><FileText size={16} /> Image</span>
-                        </div>
-                        <p className="mt-4 text-xs text-gray-300">Max file size: 25MB</p>
+                        {selectedFile ? (
+                          <div className="text-center">
+                            <div className="mb-6 inline-flex p-6 bg-green-100 text-green-600 rounded-2xl">
+                              <CheckCircle2 size={32} />
+                            </div>
+                            <p className="text-xl font-bold text-brand-navy mb-1 truncate px-4">{selectedFile.name}</p>
+                            <p className="text-gray-400 text-sm mb-4">{(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</p>
+                            <button 
+                              type="button" 
+                              onClick={(e) => { e.stopPropagation(); setSelectedFile(null); }}
+                              className="text-xs font-bold text-red-400 hover:text-red-600 uppercase tracking-widest flex items-center gap-1 mx-auto"
+                            >
+                              <CloseIcon size={14} /> Remove File
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="mb-6 inline-flex p-6 bg-brand-navy/5 rounded-2xl text-brand-navy group-hover:bg-brand-navy group-hover:text-white transition-all">
+                                <UploadIcon size={32} />
+                            </div>
+                            <p className="text-xl font-bold text-brand-navy mb-2">Drop your document here</p>
+                            <p className="text-gray-500 mb-8 text-sm">or click to browse your files</p>
+                            
+                            <div className="flex items-center justify-center gap-6 text-sm text-gray-400 font-medium">
+                                <span className="flex items-center gap-1.5"><FileText size={16} /> PDF</span>
+                                <span className="flex items-center gap-1.5"><FileText size={16} /> Images</span>
+                            </div>
+                            <p className="mt-4 text-xs text-gray-300 italic">Max file size: 200MB (PDF/DOCX/IMG)</p>
+                          </>
+                        )}
                     </div>
                 </div>
                 

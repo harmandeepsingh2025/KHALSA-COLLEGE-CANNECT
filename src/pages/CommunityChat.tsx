@@ -24,7 +24,9 @@ import {
   serverTimestamp, 
   query, 
   orderBy, 
-  limit 
+  limit,
+  doc,
+  setDoc
 } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/errorHandlers';
 
@@ -33,10 +35,21 @@ export default function CommunityChat() {
   const [messages, setMessages] = useState<any[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLocked, setIsLocked] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const channelId = "general-section-b"; // Example fixed channel
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const channelId = "general-section-chat"; 
+
+  const isCreator = user?.email === 'harmandeepsingh7814@gmail.com';
 
   useEffect(() => {
+    // Listen for channel status (locks)
+    const channelDoc = onSnapshot(doc(db, 'channels', channelId), (snap) => {
+      if (snap.exists()) {
+        setIsLocked(snap.data().isLocked || false);
+      }
+    });
+
     const q = query(
       collection(db, 'channels', channelId, 'messages'), 
       orderBy('createdAt', 'asc'), 
@@ -44,13 +57,8 @@ export default function CommunityChat() {
     );
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const msgs = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setMessages(msgs);
+      setMessages(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       
-      // Auto scroll to bottom
       setTimeout(() => {
         if (scrollRef.current) {
           scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -60,23 +68,67 @@ export default function CommunityChat() {
       handleFirestoreError(error, OperationType.GET, `channels/${channelId}/messages`);
     });
 
-    return () => unsubscribe();
+    return () => {
+      channelDoc();
+      unsubscribe();
+    };
   }, []);
+
+  const handleToggleLock = async () => {
+    if (!isCreator) return;
+    try {
+      await setDoc(doc(db, 'channels', channelId), {
+        isLocked: !isLocked,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    } catch (error) {
+      console.error("Lock error:", error);
+    }
+  };
+
+  const insertFormat = (type: string) => {
+    if (!textareaRef.current) return;
+    const { selectionStart, selectionEnd } = textareaRef.current;
+    const text = inputValue;
+    let formatted = '';
+    
+    if (type === 'bold') {
+      formatted = `**${text.substring(selectionStart, selectionEnd) || 'text'}**`;
+    } else if (type === 'italic') {
+      formatted = `_${text.substring(selectionStart, selectionEnd) || 'text'}_`;
+    } else if (type === 'link') {
+      formatted = `[${text.substring(selectionStart, selectionEnd) || 'Title'}](https://)`;
+    } else if (type === 'list') {
+      formatted = `\n- ${text.substring(selectionStart, selectionEnd) || 'Item'}`;
+    }
+
+    const newValue = text.substring(0, selectionStart) + formatted + text.substring(selectionEnd);
+    setInputValue(newValue);
+    
+    // Resume focus
+    setTimeout(() => {
+      textareaRef.current?.focus();
+    }, 0);
+  };
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputValue.trim() || !user || !profile) return;
+    if (!inputValue.trim() || !user) return;
+    if (isLocked && !isCreator) {
+      alert("This chat is currently locked by the administrator.");
+      return;
+    }
 
     setIsSubmitting(true);
     try {
       await addDoc(collection(db, 'channels', channelId, 'messages'), {
         channelId,
         userId: user.uid,
-        userName: profile.displayName || user.displayName || 'Anonymous',
-        userAvatar: profile.photoURL || user.photoURL || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1974&auto=format&fit=crop',
-        userRole: profile.role,
+        userName: profile?.displayName || user.displayName || 'Scholar',
+        userAvatar: profile?.photoURL || user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
+        userRole: profile?.role || 'Student',
         content: inputValue,
-        isInstructor: profile.role === 'instructor',
+        isInstructor: profile?.role === 'instructor',
         createdAt: serverTimestamp(),
       });
       setInputValue("");
@@ -95,34 +147,58 @@ export default function CommunityChat() {
           {/* Channel Header */}
           <div className="p-6 border-b border-gray-50 flex items-center justify-between bg-white/80 backdrop-blur-md sticky top-0 z-10">
             <div>
-               <h2 className="text-2xl font-serif font-bold text-brand-navy">Advanced Literary Theory - Section B</h2>
+               <h2 className="text-2xl font-serif font-bold text-brand-navy">General Chat</h2>
                <div className="flex items-center gap-2 mt-1">
                  <AlertTriangle size={14} className="text-brand-gold" />
-                 <p className="text-[10px] font-bold text-brand-navy uppercase tracking-[0.2em]">Topic: Academic Discussion Only</p>
+                 <p className="text-[10px] font-bold text-brand-navy uppercase tracking-[0.2em]">Khalsa College Connect Official</p>
                </div>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 group cursor-pointer">
-                <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 group-hover:bg-brand-navy group-hover:text-white transition-all">
-                  <Lock size={16} />
-                </div>
-                <span className="text-xs font-bold text-gray-400 group-hover:text-brand-navy">Lock</span>
+            
+            {/* Lock Control (Admin Only) */}
+            {isCreator && (
+              <button 
+                onClick={handleToggleLock}
+                className="flex items-center gap-3 bg-gray-50 hover:bg-brand-navy hover:text-white px-6 py-2 rounded-xl transition-all group border border-gray-100"
+              >
+                {isLocked ? (
+                  <XCircle size={18} className="text-red-500 group-hover:text-white" />
+                ) : (
+                  <Lock size={18} className="text-brand-gold group-hover:text-white" />
+                )}
+                <span className="text-xs font-bold uppercase tracking-widest">{isLocked ? 'Unlock Chat' : 'Lock Chat'}</span>
+              </button>
+            )}
+
+            {!isCreator && isLocked && (
+              <div className="flex items-center gap-2 px-6 py-2 bg-red-50 rounded-xl text-red-500 border border-red-100">
+                <Lock size={16} />
+                <span className="text-xs font-bold uppercase tracking-widest">Locked</span>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Messages Area */}
           <div ref={scrollRef} className="flex-grow overflow-y-auto p-10 space-y-6 scroll-smooth">
-            <div className="text-center mb-10">
-              <span className="inline-flex items-center gap-2 px-6 py-2 bg-gray-50 border border-gray-100 rounded-full text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                <Lock size={12} className="text-brand-gold" />
-                Chat opened - Academic Discourses Only
-              </span>
-            </div>
+            {isLocked && (
+              <div className="text-center mb-10">
+                <span className="inline-flex items-center gap-2 px-6 py-2 bg-red-50 border border-red-100 rounded-full text-[10px] font-bold text-red-600 uppercase tracking-widest">
+                  <Lock size={12} />
+                  Chat is temporarily restricted to Read-Only by Admin
+                </span>
+              </div>
+            )}
 
             <AnimatePresence initial={false}>
               {messages.map((message) => {
                 const isSelf = message.userId === user?.uid;
+                // Simple highlight for @mentions
+                const renderContent = (content: string) => {
+                  const parts = content.split(/(@\w+)/g);
+                  return parts.map((part, i) => 
+                    part.startsWith('@') ? <span key={i} className="text-blue-600 font-bold bg-blue-100/50 px-1 rounded">{part}</span> : part
+                  );
+                };
+
                 return (
                   <motion.div 
                     key={message.id}
@@ -131,7 +207,9 @@ export default function CommunityChat() {
                     className={`flex gap-6 ${isSelf ? 'flex-row-reverse' : ''}`}
                   >
                     <div className="flex-shrink-0">
-                      <img src={message.userAvatar} alt="" className="w-12 h-12 rounded-xl object-cover shadow-sm" />
+                      <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center font-bold text-brand-navy shadow-sm overflow-hidden">
+                        <img src={message.userAvatar} alt="" className="w-full h-full object-cover" />
+                      </div>
                     </div>
                     
                     <div className={`max-w-[70%] group ${isSelf ? 'text-right' : ''}`}>
@@ -140,9 +218,6 @@ export default function CommunityChat() {
                         <span className="text-[10px] text-gray-300 font-bold">
                           {message.createdAt?.toDate ? message.createdAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Now'}
                         </span>
-                        {message.isInstructor && (
-                           <span className="bg-brand-navy text-white text-[8px] font-black px-2 py-0.5 rounded-sm uppercase tracking-widest">Instructor</span>
-                        )}
                       </div>
                       
                       <div className={`relative p-6 rounded-2xl shadow-sm text-sm leading-relaxed ${
@@ -150,21 +225,7 @@ export default function CommunityChat() {
                         ? 'bg-blue-50 text-brand-navy rounded-tr-none border border-blue-100/50' 
                         : 'bg-white text-gray-700 border border-gray-100 rounded-tl-none'
                       }`}>
-                        {message.content}
-                        
-                        {message.attachment && (
-                          <div className="mt-6 border-t border-gray-100 pt-6">
-                             <div className="bg-white rounded-xl p-4 border border-gray-100 flex items-center gap-4 group/file hover:border-brand-navy cursor-pointer transition-all">
-                                <div className="p-3 bg-gray-50 rounded-lg text-brand-navy group-hover/file:bg-brand-navy group-hover/file:text-white transition-colors">
-                                  <FileText size={20} />
-                                </div>
-                                <div className="text-left">
-                                  <h5 className="font-bold text-brand-navy text-xs mb-1">{message.attachment.name}</h5>
-                                  <p className="text-[10px] text-gray-400 font-medium">{message.attachment.size}</p>
-                                </div>
-                             </div>
-                          </div>
-                        )}
+                        {renderContent(message.content)}
                       </div>
                     </div>
                   </motion.div>
@@ -175,9 +236,10 @@ export default function CommunityChat() {
 
           {/* Input Area */}
           <div className="p-6 border-t border-gray-50 bg-white">
-            <form onSubmit={handleSendMessage} className="bg-white rounded-2xl border border-gray-100 p-4 shadow-xl shadow-gray-50">
+            <form onSubmit={handleSendMessage} className={`bg-white rounded-2xl border border-gray-100 p-4 shadow-xl shadow-gray-50 ${(isLocked && !isCreator) ? 'opacity-50 pointer-events-none' : ''}`}>
                <textarea 
-                placeholder="Contribute to the academic discussion..."
+                ref={textareaRef}
+                placeholder={isLocked && !isCreator ? "This chat is locked..." : "Share your thoughts or tag someone with @name..."}
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={(e) => {
@@ -186,28 +248,27 @@ export default function CommunityChat() {
                     handleSendMessage(e);
                   }
                 }}
-                className="w-full bg-transparent border-none focus:ring-0 text-sm py-4 h-32 resize-none placeholder:text-gray-300"
+                className="w-full bg-transparent border-none focus:ring-0 text-sm py-4 h-24 md:h-32 resize-none placeholder:text-gray-300"
                />
                
                <div className="flex items-center justify-between border-t border-gray-50 pt-4">
                   <div className="flex items-center gap-4 text-gray-300">
-                    <button type="button" className="hover:text-brand-navy transition-colors"><Paperclip size={18} /></button>
-                    <div className="w-px h-4 bg-gray-100 mx-2" />
-                    <button type="button" className="hover:text-brand-navy transition-colors"><Bold size={18} /></button>
-                    <button type="button" className="hover:text-brand-navy transition-colors"><Italic size={18} /></button>
-                    <button type="button" className="hover:text-brand-navy transition-colors"><List size={18} /></button>
+                    <button type="button" onClick={() => insertFormat('bold')} className="hover:text-brand-navy transition-colors"><Bold size={18} /></button>
+                    <button type="button" onClick={() => insertFormat('italic')} className="hover:text-brand-navy transition-colors"><Italic size={18} /></button>
+                    <button type="button" onClick={() => insertFormat('link')} className="hover:text-brand-navy transition-colors"><Paperclip size={18} /></button>
+                    <button type="button" onClick={() => insertFormat('list')} className="hover:text-brand-navy transition-colors"><List size={18} /></button>
                   </div>
                   
                   <div className="flex items-center gap-6">
-                    <p className="text-[10px] text-gray-300 font-bold hidden sm:block">Press Enter to send, Shift+Enter for new line.</p>
+                    <p className="text-[10px] text-gray-300 font-bold hidden sm:block">Press Enter to send</p>
                     <button 
                       type="submit"
-                      disabled={!inputValue.trim() || isSubmitting}
+                      disabled={!inputValue.trim() || isSubmitting || (isLocked && !isCreator)}
                       className={`btn-primary flex items-center gap-2 px-8 py-3 text-sm transition-all ${
                         !inputValue.trim() || isSubmitting ? 'opacity-50 grayscale cursor-not-allowed' : ''
                       }`}
                     >
-                       {isSubmitting ? 'Sending...' : 'Post Response'}
+                       {isSubmitting ? 'Sending...' : 'Post Message'}
                        <Send size={16} />
                     </button>
                   </div>

@@ -60,18 +60,7 @@ export default function Navbar() {
           </div>
         </div>
 
-        {isSpecialPage && (
-            <div className="hidden md:flex flex-grow max-w-md">
-                <div className="relative w-full">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                    <input 
-                        type="text" 
-                        placeholder="Search archive..." 
-                        className="w-full bg-gray-50 border border-gray-100 rounded-lg py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-brand-gold/20 focus:border-brand-gold transition-all"
-                    />
-                </div>
-            </div>
-        )}
+        {/* Removed local search bar as requested to prioritize dedicated resource search */}
         
         <div className="flex items-center gap-4 md:gap-6 ml-auto">
           {isLoggedIn ? (
