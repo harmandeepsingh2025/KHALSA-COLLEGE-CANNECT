@@ -1,0 +1,47 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Playfair Display", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  
+  --color-brand-navy: #002B5B;
+  --color-brand-gold: #E3B04B;
+  --color-brand-gold-light: #F8E5B4;
+}
+
+@layer base {
+  body {
+    @apply font-sans text-gray-900 bg-white antialiased;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-serif;
+  }
+}
+
+@layer components {
+  .container-custom {
+    @apply max-w-7xl mx-auto px-6 lg:px-8;
+  }
+  
+  .btn-primary {
+    @apply inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-brand-navy hover:bg-brand-navy/90 transition-all;
+  }
+  
+  .btn-secondary {
+    @apply inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-brand-navy bg-brand-gold hover:bg-brand-gold/90 transition-all;
+  }
+
+  .card-premium {
+    @apply bg-white border border-gray-100 rounded-xl p-8 hover:border-brand-gold/30 transition-all duration-300;
+  }
+
+  .input-field {
+    @apply block w-full px-4 py-3 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-gold/20 focus:border-brand-gold transition-all bg-white;
+  }
+  
+  .label-field {
+    @apply block text-sm font-semibold text-gray-700 mb-2;
+  }
+}
