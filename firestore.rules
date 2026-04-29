@@ -84,11 +84,12 @@ service cloud.firestore {
       return data.keys().hasAll(['channelId', 'userId', 'content', 'createdAt']) &&
              data.keys().size() <= 15 &&
              data.userId == request.auth.uid &&
-             data.content is string && data.content.size() <= 2000 &&
+             data.content is string && data.content.size() <= 5000 &&
              data.createdAt == request.time &&
              (data.get('userName', '') is string) &&
              (data.get('userAvatar', '') is string) &&
-             (data.get('userRole', '') is string);
+             (data.get('userRole', '') is string) &&
+             (data.get('isInstructor', false) is bool);
     }
 
     // --- Collections ---
@@ -150,7 +151,8 @@ service cloud.firestore {
       allow create: if isSignedIn() && 
                     isValidChatMessage(incoming()) &&
                     (
-                      // Only allow if channel is not locked OR user is Admin
+                      // Only allow if channel is not locked (or doc doesn't exist) OR user is Admin
+                      !exists(/databases/$(database)/documents/channels/$(channelId)) ||
                       get(/databases/$(database)/documents/channels/$(channelId)).data.get('isLocked', false) == false ||
                       isAdmin()
                     );
